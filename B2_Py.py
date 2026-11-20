@@ -1,35 +1,45 @@
-import os
-import pandas as pd
-def lire_fichier(chemin):
-    print("Lecture depuis ce chemin :",chemin)
-    tableau=pd.read_csv(chemin,sep=";",dtype=str)
-    print("Nous avons donc :",len(tableau),"lignes et",len(tableau.columns),"colonnes")
-    return tableau
-def afficher_infos(nom,tableau):
-    print("=====",nom,"=====")
-    print("Colonnes :")
-    for colonne in tableau.columns:
-        manquants=tableau[colonne].isna().sum()
-        print("",colonne,"- valeurs manquantes :",manquants)
-    print("Premières lignes:")
-    print(tableau.head(3))
-print("CWD (Dossier où nous travaillons) :",os.getcwd())
-print("Contenu du dossier :",os.listdir("."))
-print("Contenu de data :",os.listdir("data"))
-print("Contenu de ref :",os.listdir("ref"))
-stations=lire_fichier("data"+os.sep+"sup_station.txt")
-supports=lire_fichier("data"+os.sep+"sup_support.txt")
-antennes=lire_fichier("data"+os.sep+"sup_antenne.txt")
-emetteurs=lire_fichier("data"+os.sep+"sup_emetteur.txt")
-exploitants=lire_fichier("ref"+os.sep+"sup_exploitant.txt")
-natures=lire_fichier("ref"+os.sep+"sup_nature.txt")
-afficher_infos("Stations",stations)
-afficher_infos("Supports",supports)
-afficher_infos("Antennes",antennes)
-afficher_infos("Emetteurs",emetteurs)
-afficher_infos("Exploitants",exploitants)
-afficher_infos("Natures",natures)
-print("Systèmes émetteurs :")
-systemes=emetteurs["EMR_LB_SYSTEME"].value_counts()
-for nom in systemes.index:
-    print("",nom,":",systemes[nom])
+import os #Chemins et dossiers
+import pandas as pd #Données en tableaux
+import tkinter as tk #Interface graphique
+from matplotlib.figure import Figure #Figure du graphique
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg #Intégration d'un graphique matplotlib sur Tkinter
+def lecture(dossier,fichier,colonnes): #Définition de la fonction de lecture des fichiers
+    chemin=dossier+os.sep+fichier #Construction du chemin vers les fichiers
+    return pd.read_csv(chemin,sep=";",dtype=str,usecols=colonnes) #Lecture du fichier CSV en sélectionnant les colonnes nécessaires
+def nombresss(colonne): #Fonction permettant de convertir une colonne en nombres
+    colonne = colonne.str.replace(",",".") #Remplacement des virgules par des points pour faciliter la conversion
+    return pd.to_numeric(colonne,errors="coerce") #Conversion des valeurs en nombres et remplacement des erreurs par NaN
+def donnees_chargement(): #Fonction permettant de charger et préparer les données pour la carte et puis tout placer et on comprends
+    global supports
+    supports=lecture("data","sup_support.txt",["SUP_ID","COR_NB_DG_LAT","COR_NB_MN_LAT","COR_NB_SC_LAT","COR_NB_DG_LON","COR_NB_MN_LON","COR_NB_SC_LON","COR_CD_EW_LON","COM_CD_INSEE"]) #Chargement du fichier contenant les informations des supports ??
+    supports["departement"]=supports["COM_CD_INSEE"].str[0:2] #Récupération des deux premiers caractères du code INSEE pour identifier le département
+    supports=supports[(supports["departement"]!="97")&(supports["departement"]!="98")] #Suppression des départements pas en France directement
+    supports=supports.drop_duplicates() #Suppression des lignes en double
+    supports["lattitude"]=nombresss(supports["COR_NB_DG_LAT"])+nombresss(supports["COR_NB_MN_LAT"])/60+nombresss(supports["COR_NB_SC_LAT"])/3600 #Conversion des coordonnées de latitude en degrés
+    supports["longitude"]=nombresss(supports["COR_NB_DG_LON"])+nombresss(supports["COR_NB_MN_LON"])/60+nombresss(supports["COR_NB_SC_LON"])/3600 #Conversion des coordonnées de longitude en degrés
+    ouest=supports["COR_CD_EW_LON"]=="W" #Identification des longitudes
+    supports.loc[ouest,"longitude"]=-supports.loc[ouest,"longitude"] #Passage des longitudes ouest en valeurs négatives
+def carte(): #carte des antennes
+    global plot #Déclaration de plot comme variable globale
+    fond=supports.drop_duplicates("SUP_ID") #Conservation d'une seule ligne par identifiant de support
+    plot = figure.add_subplot(111) #1ere ligne 1ere colonne 1ere pos
+    plot.scatter(fond["longitude"],fond["lattitude"],s=0.3,color="g") #Placement des antennes
+    plot.set_title("Carte de la France") #Titre carte
+    plot.set_xlabel("Longitude") #Ajout du nom de x
+    plot.set_ylabel("lattitude") #Ajout du nom de y
+    canvas.draw() #Actualisation de l'affichage du graphique
+def fenetre(): #Fenêtre TKINTER
+    global fenetre, figure, canvas
+    fenetre=tk.Tk() #Création de la fenêtre principale
+    fenetre.title("Carte Française Des Antennes nG") #Titre
+    fenetre.geometry("1920x1080") #Fenêtre tkiner taille
+    gauche=tk.Frame(fenetre) #Cadre graphique
+    figure = Figure(figsize=(8, 8)) #Taille de la carte
+    gauche.pack(side="left",fill="both",expand=True) #Positionnement du cadre et adaptation à la taille de la fenêtre
+    canvas=FigureCanvasTkAgg(figure,master=gauche) #Intégration du graphique dans mon tkinter
+    canvas.get_tk_widget().pack(fill="both",expand=True) #Affichage du graphique dans mon tkinter
+os.chdir(os.path.dirname(os.path.abspath(__file__))) #Définition du dossier du script comme répertoire de travail
+donnees_chargement() 
+fenetre() 
+carte() #Fermeture des fonctions
+fenetre.mainloop() #Garde la fenêtre tkinter ouverte
