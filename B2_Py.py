@@ -1,154 +1,173 @@
-import os #Chemins et dossiers
-import pandas as pd #Données en tableaux
-import tkinter as tk #Interface graphique
-from matplotlib.figure import Figure #Figure du graphique
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg #Intégration d'un graphique matplotlib sur Tkinter
-from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk #Barre d'outils de matplotlib (zoom, déplacement, enregistrement)
+import os #To find our files and folders
+import webbrowser #Opens map in browser
+import pandas as pd #Data in the board
+import folium #Interactive Map
 
-GENERATIONS={"GSM 900":"2G","GSM 1800":"2G","UMTS 900":"3G","UMTS 2100":"3G", #Systèmes 2G & 3G
-             "LTE 700":"4G","LTE 800":"4G","LTE 900":"4G","LTE 1800":"4G","LTE 2100":"4G","LTE 2600":"4G", #Systèmes 4G
-             "5G NR 700":"5G","5G NR 2100":"5G","5G NR 3500":"5G"} #Systèmes 5G
-OPERATEURS=["ORANGE","SFR","BOUYGUES TELECOM","FREE MOBILE"] #Opérateurs mobiles
-cercle=None #Cercle autour de la balise cliquée (aucun au départ)
+GENERATIONS={"GSM 900":"2G","GSM 1800":"2G","UMTS 900":"3G","UMTS 2100":"3G", #2/3G Systems
+             "LTE 700":"4G","LTE 800":"4G","LTE 900":"4G","LTE 1800":"4G","LTE 2100":"4G","LTE 2600":"4G", #4G Systems
+             "5G NR 700":"5G","5G NR 2100":"5G","5G NR 3500":"5G"} #5G Systems
+OPERATEURS=["ORANGE","SFR","BOUYGUES TELECOM","FREE MOBILE"] #Mobile Operators
+STYLE_DE_LA_CARTE_SATELLITE_BEAU="https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM_0_19&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}" #Satellite Images for MAP
 
-def lecture(dossier,fichier,colonnes): #Définition de la fonction de lecture des fichiers
-    chemin=dossier+os.sep+fichier #Construction du chemin vers les fichiers
-    return pd.read_csv(chemin,sep=";",dtype=str,usecols=colonnes) #Lecture du fichier CSV en sélectionnant les colonnes nécessaires
+def lecture(dossier,fichier,colonnes): #Read files function definition
+    chemin=dossier+os.sep+fichier #Path to our files
+    return pd.read_csv(chemin,sep=";",dtype=str,usecols=colonnes) #Reading CSV files using the line beforehand
 
-def nombresss(colonne): #Fonction permettant de convertir une colonne en nombres
-    colonne = colonne.str.replace(",",".") #Remplacement des virgules par des points pour faciliter la conversion
-    return pd.to_numeric(colonne,errors="coerce") #Conversion des valeurs en nombres et remplacement des erreurs par NaN
+def nombresss(colonne): #Function : columns = numbers
+    colonne=colonne.str.replace(",",".") #Replacing "," by "." for easier calculations
+    return pd.to_numeric(colonne,errors="coerce") #Values become numbers and errors become NaN
 
-def donnees_chargement(): #Fonction permettant de charger et préparer les données pour la carte
+def donnees_chargement(): #Loading Dat
 
-    global supports, stations, generations, antennes #Déclaration des tableaux comme variables globales
-    supports=lecture("data","sup_support.txt",["SUP_ID","STA_NM_ANFR","NAT_ID","COR_NB_DG_LAT","COR_NB_MN_LAT","COR_NB_SC_LAT","COR_NB_DG_LON","COR_NB_MN_LON","COR_NB_SC_LON","COR_CD_EW_LON","SUP_NM_HAUT","ADR_LB_ADD1","ADR_LB_LIEU","COM_CD_INSEE"]) #Chargement du fichier contenant les informations des supports
-    stations=lecture("data","sup_station.txt",["STA_NM_ANFR","ADM_ID"]) #Chargement des stations (installations) avec leur exploitant
-    antennes=lecture("data","sup_antenne.txt",["AER_ID","SUP_ID"]) #Chargement des antennes avec le support sur lequel elles sont posées
-    emetteurs=lecture("data","sup_emetteur.txt",["STA_NM_ANFR","EMR_LB_SYSTEME"]) #Chargement des émetteurs avec leur système (GSM, LTE, 5G...)
-    exploitants=lecture("ref","sup_exploitant.txt",["ADM_ID","ADM_LB_NOM"]) #Chargement du nom de chaque exploitant
-    natures=lecture("ref","sup_nature.txt",["NAT_ID","NAT_LB_NOM"]) #Chargement du nom de chaque type de support (pylône, château d'eau...)
-    
-    supports["departement"]=supports["COM_CD_INSEE"].str[0:2] #Récupération des deux premiers caractères du code INSEE pour identifier le département
-    supports=supports.drop_duplicates() #Suppression des lignes en double
-    supports=supports[(supports["departement"]!="97")&(supports["departement"]!="98")] #Suppression des départements pas en France directement
-    supports["lattitude"]=nombresss(supports["COR_NB_DG_LAT"])+nombresss(supports["COR_NB_MN_LAT"])/60+nombresss(supports["COR_NB_SC_LAT"])/3600 #Conversion des coordonnées de latitude en degrés
-    supports["longitude"]=nombresss(supports["COR_NB_DG_LON"])+nombresss(supports["COR_NB_MN_LON"])/60+nombresss(supports["COR_NB_SC_LON"])/3600 #Conversion des coordonnées de longitude en degrés
-    
+    global supports, stations, generations, antennes #These will become global and can be used in other functions
+    supports=lecture("data","sup_support.txt",["SUP_ID","STA_NM_ANFR","NAT_ID","COR_NB_DG_LAT","COR_NB_MN_LAT","COR_NB_SC_LAT","COR_NB_DG_LON","COR_NB_MN_LON","COR_NB_SC_LON","COR_CD_EW_LON","SUP_NM_HAUT","ADR_LB_ADD1","ADR_LB_LIEU","COM_CD_INSEE"]) #Support Data
+    stations=lecture("data","sup_station.txt",["STA_NM_ANFR","ADM_ID"]) #Loading installations with their operator
+    antennes=lecture("data","sup_antenne.txt",["AER_ID","SUP_ID"]) #Loading antennas and their supports
+    emetteurs=lecture("data","sup_emetteur.txt",["STA_NM_ANFR","EMR_LB_SYSTEME"]) #Loading transmitters with their system (GSM, LTE, 5G,...........)
+    exploitants=lecture("ref","sup_exploitant.txt",["ADM_ID","ADM_LB_NOM"]) #Loading operators name
+    natures=lecture("ref","sup_nature.txt",["NAT_ID","NAT_LB_NOM"]) #Loading support name (water castle, other stuff,...)
+
+    supports["departement"]=supports["COM_CD_INSEE"].str[0:2] #Taking fist two numbers for departments
+    supports=supports.drop_duplicates() #Doubles are now deleted
+    supports=supports[(supports["departement"]!="97")&(supports["departement"]!="98")] #Deleting other departments that are in outer sea
+    supports["lattitude"]=nombresss(supports["COR_NB_DG_LAT"])+nombresss(supports["COR_NB_MN_LAT"])/60+nombresss(supports["COR_NB_SC_LAT"])/3600 #Latitude coordinates in degrees
+    supports["longitude"]=nombresss(supports["COR_NB_DG_LON"])+nombresss(supports["COR_NB_MN_LON"])/60+nombresss(supports["COR_NB_SC_LON"])/3600 #Longitude coordinates in degrees
+
     ouest=supports["COR_CD_EW_LON"]=="W" #longitudes
-    
-    supports.loc[ouest,"longitude"]=-supports.loc[ouest,"longitude"] #Passage des longitudes ouest en valeurs négatives
-    supports["hauteur"]=nombresss(supports["SUP_NM_HAUT"]) #Conversion de la hauteur du support en nombre
-    supports=supports.merge(natures,on="NAT_ID",how="left") #Ajout du nom du type de support grâce à son identifiant
-    supports["adresse"]=supports["ADR_LB_ADD1"].fillna(supports["ADR_LB_LIEU"]) #Adresse du support, ou le nom du lieu si l'adresse est vide
 
-    stations=stations.merge(exploitants,on="ADM_ID",how="left") #Ajout du nom de l'opérateur à chaque station
-    stations=stations.merge(supports[["STA_NM_ANFR","departement"]].drop_duplicates("STA_NM_ANFR"),on="STA_NM_ANFR") #Ajout du département de chaque station
+    supports.loc[ouest,"longitude"]=-supports.loc[ouest,"longitude"] #W in negative
+    supports["hauteur"]=nombresss(supports["SUP_NM_HAUT"]) #Height of the support
+    supports=supports.merge(natures,on="NAT_ID",how="left") #Adding name of the support
+    supports["adresse"]=supports["ADR_LB_ADD1"].fillna(supports["ADR_LB_LIEU"]) #Shows address of the support, if the thing is empty, it replaces itself by the location
+    supports=supports.dropna(subset=["lattitude","longitude"]) #Deleting supports without coordinates
 
-    emetteurs["generation"]=emetteurs["EMR_LB_SYSTEME"].map(GENERATIONS) #Traduction du système de l'émetteur en génération (2G, 3G, 4G, 5G)
-    generations=emetteurs[emetteurs["generation"].notna()] #Conservation des émetteurs dont la génération est connue
-    generations=generations[["STA_NM_ANFR","generation"]].drop_duplicates() #Une seule ligne par station et par génération
-    generations=generations.merge(stations[["STA_NM_ANFR","departement"]],on="STA_NM_ANFR") #Ajout du département de chaque station
+    stations=stations.merge(exploitants,on="ADM_ID",how="left") #Operator's name to every stations
+    stations=stations.merge(supports[["STA_NM_ANFR","departement"]].drop_duplicates("STA_NM_ANFR"),on="STA_NM_ANFR") #Departement's name to every stations
 
-    antennes=antennes.drop_duplicates("AER_ID") #Une seule ligne par antenne
-    antennes=antennes.merge(supports[["SUP_ID","departement"]].drop_duplicates("SUP_ID"),on="SUP_ID") #Ajout du département de chaque antenne grâce à son support
+    emetteurs["generation"]=emetteurs["EMR_LB_SYSTEME"].map(GENERATIONS) #Transmitter's system translation to nG generation
+    generations=emetteurs[emetteurs["generation"].notna()] #Keeping transmitters with known positions
+    generations=generations[["STA_NM_ANFR","generation"]].drop_duplicates() #One line per station and generation
+    generations=generations.merge(stations[["STA_NM_ANFR","departement"]],on="STA_NM_ANFR") #Adding every station's departments
 
-def balises(): #Ajout de la position de la balise de chaque dép
+    antennes=antennes.drop_duplicates("AER_ID") #A single line per antenna
+    antennes=antennes.merge(supports[["SUP_ID","departement"]].drop_duplicates("SUP_ID"),on="SUP_ID") #Adding department of every antennas thanks to its support
 
-    global dep,lat,lon #variables globales
-    dep=[] #Liste des numéros de départements
-    lat=[] #Liste des latitudes des balises
-    lon=[] #Liste des longitudes des balises
+def balises(): #Adding position of each department
 
-    for chaque_departements in sorted(supports["departement"].unique()): #Parcours de chaque département une seule fois et dans l'ordre
-        partie=supports[supports["departement"]==chaque_departements] #Sélection des supports du département
-        dep.append(chaque_departements) #Ajout du numéro du département
-        lat.append(partie["lattitude"].mean()) #Moyenne des latitudes du département = latitude de la balise
-        lon.append(partie["longitude"].mean()) #Moyenne des longitudes du département = longitude de la balise
+    global dep,lat,lon
+    dep=[] #List of department numbers
+    lat=[] #List of positions in latitude
+    lon=[] #List of positions in longitude
 
-def infos(numero): #Fonction qui écrit le texte d'informations d'un département
+    for chaque_departements in sorted(supports["departement"].unique()): #Tracking every department, once, in order
+        partie=supports[supports["departement"]==chaque_departements] #Selection of the supports of each departments
+        dep.append(chaque_departements) #Adding number of dpt
+        lat.append(partie["lattitude"].mean()) #Average of latitude of the department = latitude of the point on the MAP
+        lon.append(partie["longitude"].mean()) #Average of longitude of the department = longitude of the point on the MAP
 
-    supports_dep=supports[supports["departement"]==numero].drop_duplicates("SUP_ID") #Supports du département, une seule fois chacun
-    stations_dep=stations[stations["departement"]==numero] #Stations du département
-    generations_dep=generations[generations["departement"]==numero] #Générations des stations du département
+def infos(numero): #Fonction that writes information of each department
 
-    texte="DÉPARTEMENT "+numero+"\n" #Numéro département
-    texte=texte+"------------------------------\n" #Ligne pour le flooow
-    texte=texte+"Installations : "+str(len(stations_dep))+"\n" #Nombre d'installations
-    texte=texte+"Supports : "+str(len(supports_dep))+"\n" #Nombre de supports
-    texte=texte+"Antennes : "+str(len(antennes[antennes["departement"]==numero]))+"\n\n" #Nombre d'antennes
+    supports_dep=supports[supports["departement"]==numero].drop_duplicates("SUP_ID") #Supports of the department, once each
+    stations_dep=stations[stations["departement"]==numero] #Stations of the departement
+    generations_dep=generations[generations["departement"]==numero] #Genenration of stations of each departments
 
-    texte=texte+"Installations par opérateur :\n" #Titre de la partie opérateurs
-    for operateur in OPERATEURS: #On parcourt chaque opérateur...
-        nombre=len(stations_dep[stations_dep["ADM_LB_NOM"]==operateur]) #Nombre de stations de cet opérateur dans le département
-        texte=texte+""+operateur+":"+str(nombre)+"\n" #Ajout de la ligne de l'opérateur
+    texte="DÉPARTEMENT "+numero+"<br>" #Numéro département
+    texte=texte+"Installations : "+str(len(stations_dep))+"<br>" #Number of installations
+    texte=texte+"Supports : "+str(len(supports_dep))+"<br>" #Number of supports
+    texte=texte+"Antennes : "+str(len(antennes[antennes["departement"]==numero]))+"<br><br>" #Number of antennas
 
-    texte=texte+"\nInstallations par génération :\n" #Titre de la partie générations
-    for generation in ["2G","3G","4G","5G"]: #Parcours de chaque génération
-        nombre=len(generations_dep[generations_dep["generation"]==generation]) #Nombre de stations de cette génération dans le département
-        texte=texte+""+generation+":"+str(nombre)+"\n" #Ajout de la ligne de la génération
+    texte=texte+"Installations par opérateur :<br>" #Title of operators part
+    for operateur in OPERATEURS:
+        nombre=len(stations_dep[stations_dep["ADM_LB_NOM"]==operateur]) #Number of stations of this operator in this department
+        texte=texte+""+operateur+":"+str(nombre)+"<br>" #Adding line of operator
 
-    hauteurs_ok=supports_dep[(supports_dep["hauteur"]>0)&(supports_dep["hauteur"]<=300)] #Supports avec une hauteur réaliste (entre 0 et 300 m)
-    if len(hauteurs_ok)>0: #S'il reste au moins un support
-        plus_haut=hauteurs_ok.sort_values("hauteur").iloc[-1] #Tri par hauteur et récupération du dernier = le plus haut
-        texte=texte+"\nSupport le plus haut :\n" #Titre de la partie support le plus haut
-        texte=texte+""+str(plus_haut["NAT_LB_NOM"])+" de "+str(plus_haut["hauteur"])+" m\n" #Type et hauteur du support
-        texte=texte+""+str(plus_haut["adresse"])+"\n" #Adresse du support
-        texte=texte+"commune INSEE "+plus_haut["COM_CD_INSEE"]+"\n" #Code INSEE de la commune (code postal)
-    return texte #Renvoi du texte complet
+    texte=texte+"<br>Installations par génération :<br>" #Title of the generationssss part
+    for generation in ["2G","3G","4G","5G"]: 
+        nombre=len(generations_dep[generations_dep["generation"]==generation]) #Number of stations of this generation in the department
+        texte=texte+""+generation+":"+str(nombre)+"<br>" #Adding line of generation
 
-def clic_balise(clic): #Fonction appelée quand on clique sur une balise
+    hauteurs_ok=supports_dep[(supports_dep["hauteur"]>0)&(supports_dep["hauteur"]<=300)] #Supports with realistic height
+    if len(hauteurs_ok)>0: #If there's atleast one support
+        plus_haut=hauteurs_ok.sort_values("hauteur").iloc[-1] #Sort by height and taking the last one
+        texte=texte+"<br>Support le plus haut :<br>" #Title of highest support
+        texte=texte+""+str(plus_haut["NAT_LB_NOM"])+" de "+str(plus_haut["hauteur"])+" m<br>" #Type and height of said support
+        texte=texte+""+str(plus_haut["adresse"])+"<br>" #Address of support
+        texte=texte+"commune INSEE "+plus_haut["COM_CD_INSEE"]+"<br>" #Postal Code
+    return texte
 
-    global cercle #Déclaration du cercle comme variable globale
-    position=clic.ind[0] #Position de la balise cliquée dans la liste
-    numero=dep[position] #Numéro du département de cette balise
-    label_infos.config(text=infos(numero)) #Affichage des informations du département dans le cadre de droite
-    if cercle is not None: #Si une balise était déjà entourée
-        cercle.remove() #Suppression de l'ancien cercle
-    cercle=plot.scatter([lon[position]],[lat[position]],s=300,facecolors="none",edgecolors="black",linewidths=2) #Cercle noir autour de la balise cliquée
-    canvas.draw() #Actualisation de l'affichage du graphique
+def infos_support(ligne): #Function to show the informations of a support
 
-def carte(): #carte des antennes
+    texte="SUPPORT "+str(ligne["SUP_ID"])+"<br>" #Number of supports
+    texte=texte+"Installations : "+str(ligne["installations"])+"<br>" #Number of installations
+    texte=texte+"Antennes : "+str(ligne["antennes"])+"<br><br>" #Number of antennas
 
-    global plot #Déclaration de plot comme variable globale
-    fond=supports.drop_duplicates("SUP_ID") #Conservation d'une seule ligne par identifiant de support
-    plot=figure.add_subplot(111) #1ere ligne 1ere colonne 1ere pos
-    plot.format_coord = lambda x, y: "" #Suppression de l'affichage des coordonnées en bas à droite
-    plot.scatter(fond["longitude"],fond["lattitude"],s=0.3,color="g") #Placement des antennes
-    plot.scatter(lon,lat,s=60,color="red",edgecolors="darkred") #Placement des balises des départements
-    plot.collections[-1].set_picker(True) #Rend les balises cliquables
+    texte=texte+"Installations par opérateur :<br>" #Title of the operator part
+    for operateur in OPERATEURS: 
+        texte=texte+""+operateur+":"+str(ligne[operateur])+"<br>" #Adding operator line
 
-    for i in range(len(dep)): #Parcours de chaque balise
-        plot.text(lon[i],lat[i]+0.12,dep[i],ha="center",fontsize="8",weight="bold") #Écriture du numéro du département juste au-dessus de sa balise
-    plot.set_aspect(1.2) #Proportions de la carte pour ne pas déformer la France
-    plot.set_title("Carte de la France") #Titre carte
-    plot.set_xlabel("Longitude") #Ajout du nom de x
-    plot.set_ylabel("lattitude") #Ajout du nom de y
-    canvas.draw() #Actualisation de l'affichage du graphique
+    texte=texte+"<br>Installations par génération :<br>" #Title of the generation part
+    for generation in ["2G","3G","4G","5G"]:
+        texte=texte+""+generation+":"+str(ligne[generation])+"<br>" #Adding line of the generation
 
-def fenetre(): #Fenêtre TKINTER
+    texte=texte+"<br>Support :<br>" #Title of the support part
+    texte=texte+""+str(ligne["NAT_LB_NOM"])+" de "+str(ligne["hauteur"])+" m<br>" #Type and height of support
+    texte=texte+""+str(ligne["adresse"])+"<br>" #Support's address
+    texte=texte+"commune INSEE "+str(ligne["COM_CD_INSEE"])+"<br>" #INSEE city code
+    return texte #Sending back text
 
-    global fenetre, figure, canvas
-    global label_infos #Déclaration du texte d'informations comme variable globale
-    fenetre=tk.Tk() #Création de la fenêtre principale
-    fenetre.title("Carte Française Des Antennes nG") #Titre
-    fenetre.geometry("1000x1000") #Fenêtre tkiner taille
-    gauche=tk.Frame(fenetre) #Cadre graphique
-    figure=Figure(figsize=(8, 8)) #Taille de la carte
-    gauche.pack(side="left",fill="both",expand=True) #Positionnement du cadre et adaptation à la taille de la fenêtre
-    canvas=FigureCanvasTkAgg(figure,master=gauche) #Intégration du graphique dans mon tkinter
-    NavigationToolbar2Tk(canvas,gauche) #Ajout de la barre d'outils sous la carte
-    canvas.get_tk_widget().pack(fill="both",expand=True) #Affichage du graphique dans mon tkinter
-    canvas.mpl_connect("pick_event",clic_balise) #Appel de clic_balise quand on clique sur une balise
-    droite=tk.Frame(fenetre,padx=10,pady=10) #Cadre des informations
-    droite.pack(side="right",fill="y") #Positionnement du cadre à droite de la fenêtre
-    tk.Label(droite,text="Informations",font=("Arial",14,"bold")).pack(anchor="w") #Titre du cadre
-    label_infos=tk.Label(droite,text="Cliquez sur une balise rouge",justify="left",font=("Consolas",10)) #Texte qui affichera les informations du département
-    label_infos.pack(anchor="w") #Affichage du texte dans le cadre
+def points(): #Preparation of each points, with a single point meaning it's a support
 
-os.chdir(os.path.dirname(os.path.abspath(__file__))) #Définition du dossier du script comme répertoire de travail
-donnees_chargement() #Chargement des données
-balises() #Départements
-fenetre() #Création de la fenêtre
-carte() #Dessin de la carte avec les antennes et les balises
-fenetre.mainloop() #Garde la fenêtre tkinter ouverte   
+    global liste_points #Global variable stuff
+    fond=supports.drop_duplicates("SUP_ID") #A single line for each identifier of every support
+    liens=supports[["SUP_ID","STA_NM_ANFR"]].drop_duplicates() #Which station is on which support.
+    liens_operateurs=liens.merge(stations[["STA_NM_ANFR","ADM_LB_NOM"]],on="STA_NM_ANFR") #Adding operator to each station
+    liens_generations=liens.merge(generations[["STA_NM_ANFR","generation"]],on="STA_NM_ANFR") #Adding generations of each support
+
+    fond["installations"]=fond["SUP_ID"].map(liens["SUP_ID"].value_counts()).fillna(0).astype(int) #Number of installations per support
+    fond["antennes"]=fond["SUP_ID"].map(antennes["SUP_ID"].value_counts()).fillna(0).astype(int) #Number of antennas per support
+    for operateur in OPERATEURS: 
+        partie=liens_operateurs[liens_operateurs["ADM_LB_NOM"]==operateur] #Stations of this operator
+        fond[operateur]=fond["SUP_ID"].map(partie["SUP_ID"].value_counts()).fillna(0).astype(int) #Number of stations of this operation per support
+    for generation in ["2G","3G","4G","5G"]: 
+        partie=liens_generations[liens_generations["generation"]==generation] #Stations of this generation
+        fond[generation]=fond["SUP_ID"].map(partie["SUP_ID"].value_counts()).fillna(0).astype(int) #Number of stations of this generation per support
+    fond=fond.fillna("inconnu") #Empty spots are now "inconnu"
+
+    liste_points=[] #List of points
+    for ligne in fond.to_dict("records"): #each ligne in fond.to_dict
+        point={"type":"Feature","geometry":{"type":"Point","coordinates":[ligne["longitude"],ligne["lattitude"]]},"properties":{"texte":infos_support(ligne)}} #Creates a GeoJSON Feature for maps
+        liste_points.append(point) #Adding point to the list
+
+def carte(): #Map of antennas
+
+    global plan, les_points
+    plan=folium.Map(location=[46.6,2.4],zoom_start=6,tiles=None,width="70%",prefer_canvas=True) #Map and settings we've chosen
+    folium.TileLayer(STYLE_DE_LA_CARTE_SATELLITE_BEAU,attr="IGN",name="Photos aériennes").add_to(plan) #Chosing map style
+
+    les_points=folium.GeoJson({"type":"FeatureCollection","features":liste_points}, #Every support points
+    marker=folium.CircleMarker(radius=2,color="red",fill_color="red",fill_opacity=0.5)) #Points style : 50% Opacity, Red filled, 1px radius
+    les_points.add_to(plan) #Adding points to map
+
+    for i in range(len(dep)): #Traveling across every departments
+        bouton="<button onclick=\"document.getElementById('infos').innerHTML=document.getElementById('dep"+dep[i]+"').innerHTML\">"+dep[i]+"</button>" #Style of department
+        folium.Marker([lat[i],lon[i]],icon=folium.DivIcon(html=bouton,icon_size=(30,22),icon_anchor=(15,11))).add_to(plan) #PAdding button to the department thing
+
+def cadre(): #Informations tab
+
+    page="<div style='position:absolute;top:0;left:71%'>" #Positioning the tab at the right of the map
+    page=page+"<h2>Informations</h2>" #Tab title
+    page=page+"<div id='infos'>Cliquez sur un numéro de département ou sur un point rouge</div>" #Text showing informations
+    page=page+"</div>" #End of tab
+    for i in range(len(dep)): #Traveling across every departments
+        page=page+"<div id='dep"+dep[i]+"' hidden>"+infos(dep[i])+"</div>" #Hidden department text on the
+    page=page+"<script>document.addEventListener('DOMContentLoaded',function(){"+les_points.get_name()+".on('click',function(clic){document.getElementById('infos').innerHTML=clic.layer.feature.properties.texte})})</script>" #Allows to click on the dot to show the informations
+    plan.get_root().html.add_child(folium.Element(page)) #Adding texts to tab
+
+os.chdir(os.path.dirname(os.path.abspath(__file__))) #CD is now where the script is
+donnees_chargement() #Loading Data
+balises() #Departments
+points() #Supports points
+carte() #Map with departments and antennas
+cadre() #Creating the information stuff tab
+plan.save("carte_antennes.html") #Saving said map in an html file
+webbrowser.open("file://"+os.path.abspath("carte_antennes.html")) #Opening the map in web browser
