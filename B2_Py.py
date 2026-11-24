@@ -3,11 +3,13 @@ import pandas as pd #Données en tableaux
 import tkinter as tk #Interface graphique
 from matplotlib.figure import Figure #Figure du graphique
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg #Intégration d'un graphique matplotlib sur Tkinter
+from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk #Barre d'outils de matplotlib (zoom, déplacement, enregistrement)
 
 GENERATIONS={"GSM 900":"2G","GSM 1800":"2G","UMTS 900":"3G","UMTS 2100":"3G", #Systèmes 2G & 3G
              "LTE 700":"4G","LTE 800":"4G","LTE 900":"4G","LTE 1800":"4G","LTE 2100":"4G","LTE 2600":"4G", #Systèmes 4G
              "5G NR 700":"5G","5G NR 2100":"5G","5G NR 3500":"5G"} #Systèmes 5G
 OPERATEURS=["ORANGE","SFR","BOUYGUES TELECOM","FREE MOBILE"] #Opérateurs mobiles
+cercle=None #Cercle autour de la balise cliquée (aucun au départ)
 
 def lecture(dossier,fichier,colonnes): #Définition de la fonction de lecture des fichiers
     chemin=dossier+os.sep+fichier #Construction du chemin vers les fichiers
@@ -70,7 +72,7 @@ def infos(numero): #Fonction qui écrit le texte d'informations d'un départemen
     stations_dep=stations[stations["departement"]==numero] #Stations du département
     generations_dep=generations[generations["departement"]==numero] #Générations des stations du département
 
-    texte="DÉPARTEMENT ",numero,"\n" #Numéro département
+    texte="DÉPARTEMENT "+numero+"\n" #Numéro département
     texte=texte+"------------------------------\n" #Ligne pour le flooow
     texte=texte+"Installations : "+str(len(stations_dep))+"\n" #Nombre d'installations
     texte=texte+"Supports : "+str(len(supports_dep))+"\n" #Nombre de supports
@@ -97,15 +99,21 @@ def infos(numero): #Fonction qui écrit le texte d'informations d'un départemen
 
 def clic_balise(clic): #Fonction appelée quand on clique sur une balise
 
+    global cercle #Déclaration du cercle comme variable globale
     position=clic.ind[0] #Position de la balise cliquée dans la liste
     numero=dep[position] #Numéro du département de cette balise
     label_infos.config(text=infos(numero)) #Affichage des informations du département dans le cadre de droite
+    if cercle is not None: #Si une balise était déjà entourée
+        cercle.remove() #Suppression de l'ancien cercle
+    cercle=plot.scatter([lon[position]],[lat[position]],s=300,facecolors="none",edgecolors="black",linewidths=2) #Cercle noir autour de la balise cliquée
+    canvas.draw() #Actualisation de l'affichage du graphique
 
 def carte(): #carte des antennes
 
     global plot #Déclaration de plot comme variable globale
     fond=supports.drop_duplicates("SUP_ID") #Conservation d'une seule ligne par identifiant de support
     plot=figure.add_subplot(111) #1ere ligne 1ere colonne 1ere pos
+    plot.format_coord = lambda x, y: "" #Suppression de l'affichage des coordonnées en bas à droite
     plot.scatter(fond["longitude"],fond["lattitude"],s=0.3,color="g") #Placement des antennes
     plot.scatter(lon,lat,s=60,color="red",edgecolors="darkred") #Placement des balises des départements
     plot.collections[-1].set_picker(True) #Rend les balises cliquables
@@ -129,6 +137,7 @@ def fenetre(): #Fenêtre TKINTER
     figure=Figure(figsize=(8, 8)) #Taille de la carte
     gauche.pack(side="left",fill="both",expand=True) #Positionnement du cadre et adaptation à la taille de la fenêtre
     canvas=FigureCanvasTkAgg(figure,master=gauche) #Intégration du graphique dans mon tkinter
+    NavigationToolbar2Tk(canvas,gauche) #Ajout de la barre d'outils sous la carte
     canvas.get_tk_widget().pack(fill="both",expand=True) #Affichage du graphique dans mon tkinter
     canvas.mpl_connect("pick_event",clic_balise) #Appel de clic_balise quand on clique sur une balise
     droite=tk.Frame(fenetre,padx=10,pady=10) #Cadre des informations
@@ -142,4 +151,4 @@ donnees_chargement() #Chargement des données
 balises() #Départements
 fenetre() #Création de la fenêtre
 carte() #Dessin de la carte avec les antennes et les balises
-fenetre.mainloop() #Garde la fenêtre tkinter ouverte
+fenetre.mainloop() #Garde la fenêtre tkinter ouverte   
