@@ -2,6 +2,7 @@ import os #To find our files and folders
 import webbrowser #Opens map in browser
 import pandas as pd #Data in the board
 import folium #Interactive Map
+import matplotlib.pyplot as plt #Graphics !
 
 GENERATIONS={"GSM 900":"2G","GSM 1800":"2G","UMTS 900":"3G","UMTS 2100":"3G", #2/3G Systems
              "LTE 700":"4G","LTE 800":"4G","LTE 900":"4G","LTE 1800":"4G","LTE 2100":"4G","LTE 2600":"4G", #4G Systems
@@ -141,27 +142,55 @@ def points(): #Preparation of each points, with a single point meaning it's a su
 def carte(): #Map of antennas
 
     global plan, les_points
-    plan=folium.Map(location=[46.6,2.4],zoom_start=6,tiles=None,width="70%",prefer_canvas=True) #Map and settings we've chosen
-    folium.TileLayer(STYLE_DE_LA_CARTE_SATELLITE_BEAU,attr="IGN",name="Photos aériennes").add_to(plan) #Chosing map style
+    plan=folium.Map(location=[48.448,1.243],zoom_start=15,tiles=None,width="70%",prefer_canvas=True) #Map and settings we've chosen, Courville-Sur-Eure is base location
+    folium.TileLayer(STYLE_DE_LA_CARTE_SATELLITE_BEAU,attr="Carte Satellite").add_to(plan) #Chosing map style
 
     les_points=folium.GeoJson({"type":"FeatureCollection","features":liste_points}, #Every support points
-    marker=folium.CircleMarker(radius=2,color="red",fill_color="red",fill_opacity=0.5)) #Points style : 50% Opacity, Red filled, 1px radius
+    marker=folium.CircleMarker(radius=4,color="#00e5ff",opacity=0.5,fill_opacity=0.3,fill_color="#00e5ff",fill="true")) #Points style : 50% Opacity, Red filled, 1px radius
     les_points.add_to(plan) #Adding points to map
 
     for i in range(len(dep)): #Traveling across every departments
-        bouton="<button onclick=\"document.getElementById('infos').innerHTML=document.getElementById('dep"+dep[i]+"').innerHTML\">"+dep[i]+"</button>" #Style of department
-        folium.Marker([lat[i],lon[i]],icon=folium.DivIcon(html=bouton,icon_size=(30,22),icon_anchor=(15,11))).add_to(plan) #PAdding button to the department thing
+        bouton="<button style='background-color:#1e293b;color:#38bdf8;padding:5px 10px;font-weight:bold;cursor:pointer;' onclick=\"document.getElementById('infos').innerHTML=document.getElementById('dep"+dep[i]+"').innerHTML\">"+dep[i]+"</button>" #Style of button department 
+        folium.Marker([lat[i],lon[i]],icon=folium.DivIcon(html=bouton,icon_size=(15,7),icon_anchor=(15,11))).add_to(plan) #PAdding button to the department thing with size and anchor chosen
 
 def cadre(): #Informations tab
 
     page="<div style='position:absolute;top:0;left:71%'>" #Positioning the tab at the right of the map
     page=page+"<h2>Informations</h2>" #Tab title
     page=page+"<div id='infos'>Cliquez sur un numéro de département ou sur un point rouge</div>" #Text showing informations
+    page=page+"<img src='graphiques.png' style='width:100%'>"
     page=page+"</div>" #End of tab
     for i in range(len(dep)): #Traveling across every departments
         page=page+"<div id='dep"+dep[i]+"' hidden>"+infos(dep[i])+"</div>" #Hidden department text on the
     page=page+"<script>document.addEventListener('DOMContentLoaded',function(){"+les_points.get_name()+".on('click',function(clic){document.getElementById('infos').innerHTML=clic.layer.feature.properties.texte})})</script>" #Allows to click on the dot to show the informations
     plan.get_root().html.add_child(folium.Element(page)) #Adding texts to tab
+
+def graphiques():
+    plt.figure(figsize=(10,8))
+    plt.subplot(2,2,1)
+    operateurssss=[]
+    for operateur in OPERATEURS:
+        operateurssss.append(len(stations[stations["ADM_LB_NOM"]==operateur]))
+    plt.bar(OPERATEURS,operateurssss)
+    plt.title("Installations par operateur")
+    plt.subplot(2,2,2)
+    gens=["2G","3G","4G","5G"]
+    xG=[]
+    for i in gens:
+        xG.append(len(generations[generations["generation"]==i]))
+    plt.bar(gens,xG)
+    plt.title("nb Installations par generation")
+    plt.subplot(2,2,3)
+    top_dep=supports.drop_duplicates("SUP_ID")["departement"].value_counts().head(5)
+    plt.bar(top_dep.index,top_dep.values)
+    plt.title("Top 5 departements en fonction de leurs supports")
+    plt.subplot(2,2,4)
+    top_nat=supports.drop_duplicates("SUP_ID")["NAT_LB_NOM"].value_counts().head(5)
+    plt.bar(top_nat.index,top_nat.values)
+    plt.title("Top 5 types de supports")
+    plt.tight_layout()
+    plt.savefig("graphiques.png")
+    plt.close()
 
 os.chdir(os.path.dirname(os.path.abspath(__file__))) #CD is now where the script is
 donnees_chargement() #Loading Data
@@ -169,5 +198,6 @@ balises() #Departments
 points() #Supports points
 carte() #Map with departments and antennas
 cadre() #Creating the information stuff tab
+graphiques()
 plan.save("carte_antennes.html") #Saving said map in an html file
 webbrowser.open("file://"+os.path.abspath("carte_antennes.html")) #Opening the map in web browser
