@@ -146,7 +146,7 @@ def carte(): #Map of antennas
     folium.TileLayer(STYLE_DE_LA_CARTE_SATELLITE_BEAU,attr="Carte Satellite").add_to(plan) #Chosing map style
 
     les_points=folium.GeoJson({"type":"FeatureCollection","features":liste_points}, #Every support points
-    marker=folium.CircleMarker(radius=4,color="#00e5ff",opacity=0.5,fill_opacity=0.3,fill_color="#00e5ff",fill="true")) #Points style : 50% Opacity, Red filled, 1px radius
+    marker=folium.CircleMarker(radius=4,color="#00e5ff",opacity=0.5,fill_opacity=0.3,fill_color="#00e5ff",fill="true")) #Points style
     les_points.add_to(plan) #Adding points to map
 
     for i in range(len(dep)): #Traveling across every departments
@@ -158,7 +158,7 @@ def cadre(): #Informations tab
     page="<div style='position:absolute;top:0;left:71%'>" #Positioning the tab at the right of the map
     page=page+"<h2>Informations</h2>" #Tab title
     page=page+"<div id='infos'>Cliquez sur un numéro de département ou sur un point rouge</div>" #Text showing informations
-    page=page+"<img src='graphiques.png' style='width:100%'>"
+    page=page+"<img src='graphiques.png' style='width:100%'>" #Allows us to add the graphiques.png image to the informations tab
     page=page+"</div>" #End of tab
     for i in range(len(dep)): #Traveling across every departments
         page=page+"<div id='dep"+dep[i]+"' hidden>"+infos(dep[i])+"</div>" #Hidden department text on the
@@ -166,31 +166,30 @@ def cadre(): #Informations tab
     plan.get_root().html.add_child(folium.Element(page)) #Adding texts to tab
 
 def graphiques():
-    plt.figure(figsize=(10,8))
-    plt.subplot(2,2,1)
-    operateurssss=[]
+    plt.figure(figsize=(8,16)) #Size of the entire figure (width, height in inches)
+    plt.subplot(4,1,1) #4 rows, 1 column, 1st place
+    operateurssss=[] #List to store the station counts for each operator
     for operateur in OPERATEURS:
-        operateurssss.append(len(stations[stations["ADM_LB_NOM"]==operateur]))
-    plt.bar(OPERATEURS,operateurssss)
-    plt.title("Installations par operateur")
-    plt.subplot(2,2,2)
-    gens=["2G","3G","4G","5G"]
-    xG=[]
+        operateurssss.append(len(stations[stations["ADM_LB_NOM"]==operateur])) #Counts number of stations per operator
+    plt.bar(OPERATEURS,operateurssss) #Creates the bar chart (does not display it yet)
+    plt.title("Installations par operateur") #Title
+    plt.subplot(4,1,2) #4 rows, 1 column, 2nd place
+    gens=["2G","3G","4G","5G"] #List of network generations
+    xG=[] #List to store the count for each generation (1,2,3,4,5)
     for i in gens:
-        xG.append(len(generations[generations["generation"]==i]))
-    plt.bar(gens,xG)
-    plt.title("nb Installations par generation")
-    plt.subplot(2,2,3)
-    top_dep=supports.drop_duplicates("SUP_ID")["departement"].value_counts().head(5)
-    plt.bar(top_dep.index,top_dep.values)
-    plt.title("Top 5 departements en fonction de leurs supports")
-    plt.subplot(2,2,4)
-    top_nat=supports.drop_duplicates("SUP_ID")["NAT_LB_NOM"].value_counts().head(5)
-    plt.bar(top_nat.index,top_nat.values)
-    plt.title("Top 5 types de supports")
-    plt.tight_layout()
-    plt.savefig("graphiques.png")
-    plt.close()
+        xG.append(len(generations[generations["generation"]==i])) #Counts installations per generation
+    plt.bar(gens,xG) #Creates the bar chart for generations
+    plt.title("nb Installations par generation") #Title
+    plt.subplot(4,1,3) #4 rows, 1 column, 3rd place
+    top_dep=supports.drop_duplicates("SUP_ID")["departement"].value_counts().head(5) #Removes duplicate supports, counts by department, keeps top 5
+    plt.bar(top_dep.index,top_dep.values) #Creates the bar chart
+    plt.title("Top 5 departements en fonction de leurs supports") #Title
+    plt.subplot(4,1,4) #4 rows, 1 column, 4th place
+    top_nat=supports.drop_duplicates("SUP_ID")["NAT_LB_NOM"].value_counts().head(5) #Removes duplicate supports, counts by support type, keeps top 5
+    plt.bar(top_nat.index,top_nat.values) #Creates the bar chart
+    plt.title("Top 5 types de supports") #Title
+    plt.savefig("graphiques.png") #Saves the entire figure as a PNG image
+    plt.close() #Closes the figure to free up memory
 
 os.chdir(os.path.dirname(os.path.abspath(__file__))) #CD is now where the script is
 donnees_chargement() #Loading Data
