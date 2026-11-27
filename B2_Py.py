@@ -3,6 +3,7 @@ import webbrowser #Opens map in browser
 import pandas as pd #Data in the board
 import folium #Interactive Map
 import matplotlib.pyplot as plt #Graphics !
+from folium.plugins import MarkerCluster #Group points
 
 GENERATIONS={"GSM 900":"2G","GSM 1800":"2G","UMTS 900":"3G","UMTS 2100":"3G", #2/3G Systems
              "LTE 700":"4G","LTE 800":"4G","LTE 900":"4G","LTE 1800":"4G","LTE 2100":"4G","LTE 2600":"4G", #4G Systems
@@ -60,11 +61,10 @@ def balises(): #Adding position of each department
     lat=[] #List of positions in latitude
     lon=[] #List of positions in longitude
 
-    for chaque_departements in sorted(supports["departement"].unique()): #Tracking every department, once, in order
-        partie=supports[supports["departement"]==chaque_departements] #Selection of the supports of each departments
-        dep.append(chaque_departements) #Adding number of dpt
-        lat.append(partie["lattitude"].mean()) #Average of latitude of the department = latitude of the point on the MAP
-        lon.append(partie["longitude"].mean()) #Average of longitude of the department = longitude of the point on the MAP
+    grouped = supports.groupby("departement")[["lattitude", "longitude"]].mean().reset_index() #Tracking every department, once, in order
+    dep = grouped["departement"].tolist() #Adding number of dpt
+    lat = grouped["lattitude"].tolist() #Average of latitude of the department = latitude of the point on the MAP
+    lon = grouped["longitude"].tolist() #Average of longitude of the department = longitude of the point on the MAP
 
 def infos(numero): #Fonction that writes information of each department
 
@@ -142,12 +142,13 @@ def points(): #Preparation of each points, with a single point meaning it's a su
 def carte(): #Map of antennas
 
     global plan, les_points
-    plan=folium.Map(location=[48.448,1.243],zoom_start=15,tiles=None,width="70%",prefer_canvas=True) #Map and settings we've chosen, Courville-Sur-Eure is base location
+    plan=folium.Map(location=[45.5,1.4],zoom_start=6,tiles=None,width="70%",prefer_canvas=True) #Map and settings we've chosen, Courville-Sur-Eure is base location
     folium.TileLayer(STYLE_DE_LA_CARTE_SATELLITE_BEAU,attr="Carte Satellite").add_to(plan) #Chosing map style
 
+    cluster = MarkerCluster().add_to(plan)
     les_points=folium.GeoJson({"type":"FeatureCollection","features":liste_points}, #Every support points
     marker=folium.CircleMarker(radius=4,color="#00e5ff",opacity=0.5,fill_opacity=0.3,fill_color="#00e5ff",fill="true")) #Points style
-    les_points.add_to(plan) #Adding points to map
+    les_points.add_to(cluster) #Adding points to map
 
     for i in range(len(dep)): #Traveling across every departments
         bouton="<button style='background-color:#1e293b;color:#38bdf8;padding:5px 10px;font-weight:bold;cursor:pointer;' onclick=\"document.getElementById('infos').innerHTML=document.getElementById('dep"+dep[i]+"').innerHTML\">"+dep[i]+"</button>" #Style of button department 
@@ -157,7 +158,7 @@ def cadre(): #Informations tab
 
     page="<div style='position:absolute;top:0;left:71%'>" #Positioning the tab at the right of the map
     page=page+"<h2>Informations</h2>" #Tab title
-    page=page+"<div id='infos'>Cliquez sur un numéro de département ou sur un point rouge</div>" #Text showing informations
+    page=page+"<div id='infos'>Cliquez sur un numéro de département ou sur un point</div>" #Text showing informations
     page=page+"<img src='graphiques.png' style='width:100%'>" #Allows us to add the graphiques.png image to the informations tab
     page=page+"</div>" #End of tab
     for i in range(len(dep)): #Traveling across every departments
@@ -168,26 +169,30 @@ def cadre(): #Informations tab
 def graphiques():
     plt.figure(figsize=(8,16)) #Size of the entire figure (width, height in inches)
     plt.subplot(4,1,1) #4 rows, 1 column, 1st place
-    operateurssss=[] #List to store the station counts for each operator
-    for operateur in OPERATEURS:
-        operateurssss.append(len(stations[stations["ADM_LB_NOM"]==operateur])) #Counts number of stations per operator
+    
+    op_counts = stations["ADM_LB_NOM"].value_counts()
+    operateurssss = [op_counts.get(operateur, 0) for operateur in OPERATEURS] #List to store the station counts for each operator
     plt.bar(OPERATEURS,operateurssss) #Creates the bar chart (does not display it yet)
     plt.title("Installations par operateur") #Title
+    
     plt.subplot(4,1,2) #4 rows, 1 column, 2nd place
     gens=["2G","3G","4G","5G"] #List of network generations
-    xG=[] #List to store the count for each generation (1,2,3,4,5)
-    for i in gens:
-        xG.append(len(generations[generations["generation"]==i])) #Counts installations per generation
+    
+    gen_counts = generations["generation"].value_counts()
+    xG = [gen_counts.get(i, 0) for i in gens] #List to store the count for each generation (1,2,3,4,5)
     plt.bar(gens,xG) #Creates the bar chart for generations
     plt.title("nb Installations par generation") #Title
+    
     plt.subplot(4,1,3) #4 rows, 1 column, 3rd place
     top_dep=supports.drop_duplicates("SUP_ID")["departement"].value_counts().head(5) #Removes duplicate supports, counts by department, keeps top 5
     plt.bar(top_dep.index,top_dep.values) #Creates the bar chart
     plt.title("Top 5 departements en fonction de leurs supports") #Title
+    
     plt.subplot(4,1,4) #4 rows, 1 column, 4th place
     top_nat=supports.drop_duplicates("SUP_ID")["NAT_LB_NOM"].value_counts().head(5) #Removes duplicate supports, counts by support type, keeps top 5
     plt.bar(top_nat.index,top_nat.values) #Creates the bar chart
     plt.title("Top 5 types de supports") #Title
+    
     plt.savefig("graphiques.png") #Saves the entire figure as a PNG image
     plt.close() #Closes the figure to free up memory
 

@@ -18,7 +18,7 @@ Le dossier SAE15 contient :
 
 **TÊTE : la préparation**
 
-- Modules : os, webbrowser, pandas, folium, matplotlib
+- Modules : os, webbrowser, pandas, folium, matplotlib, folium.plugins : MarkerCluster
 - Constantes : GENERATIONS (système vers 2G/3G/4G/5G), OPERATEURS, fond de carte IGN
 
 **CORPS : les fonctions, en 4 parties**
